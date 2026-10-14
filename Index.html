@@ -491,12 +491,13 @@ function overlap(A,B){const a=corners(A),b=corners(B);for(const P of [a,b])for(l
  const pr=Q=>Q.map(v=>v.x*nx+v.y*ny),pa=pr(a),pb=pr(b);if(Math.max(...pa)<Math.min(...pb)||Math.max(...pb)<Math.min(...pa))return false;}return true;}
 function segDist(p,w){const dx=w.x2-w.x1,dy=w.y2-w.y1,l=dx*dx+dy*dy||1,t=Math.max(0,Math.min(1,((p.x-w.x1)*dx+(p.y-w.y1)*dy)/l));return Math.hypot(p.x-w.x1-t*dx,p.y-w.y1-t*dy);}
 function inItem(p,o){const c=Math.cos(-o.r*Math.PI/180),s=Math.sin(-o.r*Math.PI/180),dx=p.x-o.x,dy=p.y-o.y;return Math.abs(dx*c-dy*s)<=o.w/2&&Math.abs(dx*s+dy*c)<=o.h/2;}
-function hit(p){for(let i=S.items.length-1;i>=0;i--)if(inItem(p,S.items[i]))return {k:'item',o:S.items[i]};
+function hit(p,noDwg){for(let i=S.items.length-1;i>=0;i--)if(inItem(p,S.items[i]))return {k:'item',o:S.items[i]};
  for(const o of S.texts)if(inText(p,o))return {k:'text',o};
  for(const o of S.opens){const w=wallById(o.wid);if(!w)continue;const g=wGeo(w),c=opPos(o,g.L),rx=p.x-w.x1,ry=p.y-w.y1,al=rx*g.u.x+ry*g.u.y,pe=rx*g.n.x+ry*g.n.y;if(Math.abs(al-c)<=o.w/2+.05&&Math.abs(pe)<=Math.max(w.t/2+.15,.3))return {k:'open',o};}
  for(const w of S.walls)if(segDist(p,w)<=w.t/2+.2)return {k:'wall',o:w};
  {const tl=Math.max(.05,6/view.s);for(let i=S.lines.length-1;i>=0;i--)if(segDist(p,S.lines[i])<=tl)return {k:'line',o:S.lines[i]};}
  for(const d of S.dims){const g=dimGeom(d);if(segDist(p,{x1:g.a.x,y1:g.a.y,x2:g.b.x,y2:g.b.y})<.3)return {k:'dim',o:d};}
+ if(!noDwg){const r=dwgPickAt(p);if(r)return r;}
  let bz=null,ba=Infinity;for(const z of S.zones)if(p.x>=z.x&&p.x<=z.x+z.w&&p.y>=z.y&&p.y<=z.y+z.h&&z.w*z.h<=ba){ba=z.w*z.h;bz=z;}return bz?{k:'zone',o:bz}:null;}
 function inZone(it,z){return it.x>=z.x&&it.x<=z.x+z.w&&it.y>=z.y&&it.y<=z.y+z.h;}
 function newItem(type,x,y,kind){const pr=PRE[kind];return type==='pallet'?{id:S.nid++,type,kind:'Pallet',x,y,w:1.03,h:1.24,r:0,label:''}:{id:S.nid++,type,kind,x,y,w:pr.w,h:pr.h,r:0,label:kind,route:[]};}
@@ -547,8 +548,8 @@ cv.addEventListener('pointerdown',e=>{cv.setPointerCapture(e.pointerId);const p=
  const [t,k]=tool.split(':');
  if(t==='dwgwin'){drag={m:'dwgwin',x0:p.x,y0:p.y,k};box={x0:p.x,y0:p.y,x1:p.x,y1:p.y};return;}
  if(t==='parea'){drag={m:'parea',x0:p.x,y0:p.y};printRect={x0:p.x,y0:p.y,x1:p.x,y1:p.y};return;}
- if(t==='box'||(t==='select'&&e.shiftKey)){boxDown(p,hit(p),e);}
- else if(t==='select'){if(rtDown(p,sp,e))return;const tz=tHit(p);if(tz){const o=sel.o;toBox(o);drag={m:'tres',h:tz,o,c:{x:o.x,y:o.y,w:o.bw,h:o.bh,r:o.r||0}};return;}const zh=zHit(p);if(zh){drag={m:'zres',h:zh,o:sel.o,c:{x:sel.o.x,y:sel.o.y,w:sel.o.w,h:sel.o.h}};return;}const wh=wHandle(p);if(wh){const w=sel.o,cn=sel.k==='line'?[]:connOf(w,wh.i);SK=new Set([w.id,w,...cn.map(q=>q.o.id)]);drag={m:'wend',o:w,i:wh.i,conn:cn};return;}const h=hit(p);if(h&&inMs(h.o)){drag={m:'moveAll',sx:p.x,sy:p.y,c:ms.map(q=>JSON.parse(JSON.stringify(q.o)))};}
+ if(t==='box'||(t==='select'&&e.shiftKey)){boxDown(p,hit(p,t==='box'),e);}
+ else if(t==='select'){if(rtDown(p,sp,e))return;const tz=tHit(p);if(tz){const o=sel.o;toBox(o);drag={m:'tres',h:tz,o,c:{x:o.x,y:o.y,w:o.bw,h:o.bh,r:o.r||0}};return;}const zh=zHit(p);if(zh){drag={m:'zres',h:zh,o:sel.o,c:{x:sel.o.x,y:sel.o.y,w:sel.o.w,h:sel.o.h}};return;}const wh=wHandle(p);if(wh){const w=sel.o,cn=sel.k==='line'?[]:connOf(w,wh.i);SK=new Set([w.id,w,...cn.map(q=>q.o.id)]);drag={m:'wend',o:w,i:wh.i,conn:cn};return;}const h=hit(p);if(h&&h.group&&h.group.length>1){ms=h.group.map(o=>({k:'line',o}));sel=null;inspect();drag={m:'moveAll',sx:p.x,sy:p.y,c:ms.map(q=>JSON.parse(JSON.stringify(q.o)))};draw();return;}if(h&&inMs(h.o)){drag={m:'moveAll',sx:p.x,sy:p.y,c:ms.map(q=>JSON.parse(JSON.stringify(q.o)))};}
   else{ms=[];sel=h;if(h){drag={m:'move',sx:p.x,sy:p.y,o:h.o,k:h.k,c:JSON.parse(JSON.stringify(h.o))};if(h.k==='wall'){const c1=connOf(h.o,1),c2=connOf(h.o,2);drag.conn=[...c1,...c2].map(q=>({o:q.o,i2:q.i2,c:{x:q.i2===1?q.o.x1:q.o.x2,y:q.i2===1?q.o.y1:q.o.y2}}));}}else drag={m:'pan',sx:e.offsetX,sy:e.offsetY,vx:view.x,vy:view.y};inspect();}}
  else if(t==='wall'||t==='line')wallClick(sp);
  else if(CADT.includes(t))cmdClick(wallEnd(undefined,sp),p);
@@ -580,7 +581,7 @@ cv.addEventListener('pointermove',e=>{const p=world(e);mouse={x:snap(p.x),y:snap
   else{let dx=snap(p.x-drag.sx),dy=snap(p.y-drag.sy);const o=drag.o,c=drag.c;
    if('x1' in o){const cn=drag.conn||[];if(cn.length&&!altK){const L=Math.hypot(c.x2-c.x1,c.y2-c.y1)||1,nx=-(c.y2-c.y1)/L,ny=(c.x2-c.x1)/L,d=dx*nx+dy*ny;dx=nx*d;dy=ny*d;}
     o.x1=c.x1+dx;o.x2=c.x2+dx;o.y1=c.y1+dy;o.y2=c.y2+dy;if(!altK)cn.forEach(q=>{q.o['x'+q.i2]=q.c.x+dx;q.o['y'+q.i2]=q.c.y+dy;});}else{o.x=c.x+dx;o.y=c.y+dy;if(o.type==='furn'&&FUR[o.kind]&&FUR[o.kind][4]&&!altK){const f=furnAt({x:c.x+p.x-drag.sx,y:c.y+p.y-drag.sy},o.kind,false);if(f.sn){o.x=f.x;o.y=f.y;o.r=f.r;}else o.r=c.r;}}}}
- else if(tool==='select'){const rh=rtHit(p,e.ctrlKey||e.metaKey),zh=rh?null:(zHit(p)||tHit(p));cv.style.cursor=rh?(rh.ins?'copy':'move'):(zh?ZCUR[zh.i]:'');}
+ else if(tool==='select'){const rh=rtHit(p,e.ctrlKey||e.metaKey),zh=rh?null:(zHit(p)||tHit(p));const hv=(rh||zh||drag||hit(p,true))?-1:dwgHitK(p);HOV=hv;cv.style.cursor=rh?(rh.ins?'copy':'move'):(zh?ZCUR[zh.i]:(hv>=0?'pointer':''));}
  draw();});
 cv.addEventListener('pointerup',e=>{const[t]=tool.split(':');if(t==='zone'&&draft){const m=mouse;if(Math.abs(m.x-draft.x)>.5&&Math.abs(m.y-draft.y)>.5){const z={name:'Zona '+(S.zones.length+1),x:Math.min(draft.x,m.x),y:Math.min(draft.y,m.y),w:Math.abs(m.x-draft.x),h:Math.abs(m.y-draft.y)};S.zones.push(z);sel={k:'zone',o:z};setTool('select');inspect();}draft=null;}
  if(drag&&drag.m==='parea'){const r=printRect;if(!r||Math.abs(r.x1-r.x0)<.5||Math.abs(r.y1-r.y0)<.5)printRect=null;setTool('select');updPInfo();}
@@ -745,17 +746,17 @@ function rotSel(a){const T=tg();if(!T.length)return;const b=cmd.p1,r=-a*Math.PI/
   else if(q.k==='item'||q.k==='text'){const p=f(o.x,o.y);o.x=p.x;o.y=p.y;o.r=(o.r+r*180/Math.PI+360)%360;}});
  setTool('select');cap();draw();}
 function trimWall(w,c){const dx=w.x2-w.x1,dy=w.y2-w.y1,tc=((c.x-w.x1)*dx+(c.y-w.y1)*dy)/(dx*dx+dy*dy);
- const ts=S.walls.concat(S.lines).filter(o=>o!==w).map(o=>xs(w,o)).filter(r=>r&&r.u>=-1e-9&&r.u<=1+1e-9&&r.t>1e-6&&r.t<1-1e-6).map(r=>r.t);
+ const ts=S.walls.concat(S.lines,dwgSegsNear(w,false)).filter(o=>o!==w).map(o=>xs(w,o)).filter(r=>r&&r.u>=-1e-9&&r.u<=1+1e-9&&r.t>1e-6&&r.t<1-1e-6).map(r=>r.t);
  const lo=Math.max(0,...ts.filter(t=>t<=tc)),hi2=Math.min(1,...ts.filter(t=>t>tc)),P=t=>({x:w.x1+t*dx,y:w.y1+t*dy});
  const OW=S.lines.includes(w)?S.lines:S.walls;OW.splice(OW.indexOf(w),1);sel=null;
  const add=(a,b)=>{const p=P(a),q=P(b);OW.push({...w,x1:p.x,y1:p.y,x2:q.x,y2:q.y});};
  if(lo>1e-6)add(0,lo);if(hi2<1-1e-6)add(hi2,1);}
 function extendWall(w,c){const e2=Math.hypot(c.x-w.x2,c.y-w.y2)<Math.hypot(c.x-w.x1,c.y-w.y1);let best=null;
- S.walls.concat(S.lines).forEach(o=>{if(o===w)return;const r=xs(w,o);if(!r||r.u<-1e-9||r.u>1+1e-9)return;if(e2?(r.t>1+1e-6&&(!best||r.t<best.t)):(r.t<-1e-6&&(!best||r.t>best.t)))best=r;});
+ S.walls.concat(S.lines,dwgSegsNear(w,true)).forEach(o=>{if(o===w)return;const r=xs(w,o);if(!r||r.u<-1e-9||r.u>1+1e-9)return;if(e2?(r.t>1+1e-6&&(!best||r.t<best.t)):(r.t<-1e-6&&(!best||r.t>best.t)))best=r;});
  if(best){if(e2){w.x2=best.x;w.y2=best.y;}else{w.x1=best.x;w.y1=best.y;}}}
 function fillet(a,ca,b,cb){const r=xs(a,b);if(!r)return;[[a,ca],[b,cb]].forEach(([w,c])=>{const dx=w.x2-w.x1,dy=w.y2-w.y1,tc=((c.x-w.x1)*dx+(c.y-w.y1)*dy)/(dx*dx+dy*dy),tp=w===a?r.t:xs(b,a).t;if(tp>tc){w.x2=r.x;w.y2=r.y;}else{w.x1=r.x;w.y1=r.y;}});}
 function cmdClick(pt,raw){const t=tool,c=cmd,W=S.walls;
- if(['move','copy','rotate','mirror'].includes(t)&&!tg().length){sel=hit(raw);inspect();return;}
+ if(['move','copy','rotate','mirror'].includes(t)&&!tg().length){const h=hit(raw);if(h&&h.group&&h.group.length>1){ms=h.group.map(o=>({k:'line',o}));sel=null;}else sel=h;inspect();cap();return;}
  if(t==='rect'){if(!c.p1)c.p1=pt;else{const a=c.p1;[[a.x,a.y,pt.x,a.y],[pt.x,a.y,pt.x,pt.y],[pt.x,pt.y,a.x,pt.y],[a.x,pt.y,a.x,a.y]].forEach(q=>W.push({x1:q[0],y1:q[1],x2:q[2],y2:q[3],t:WT()}));setTool('select');}}
  else if(t==='offset'){if(!c.d)return;const h=hit(raw);if(!c.w){if(h&&(h.k==='wall'||h.k==='line'))c.w=h.o;}else{const w=c.w,dx=w.x2-w.x1,dy=w.y2-w.y1,L=Math.hypot(dx,dy),n={x:-dy/L,y:dx/L},s=((raw.x-w.x1)*n.x+(raw.y-w.y1)*n.y)>0?1:-1;
    (S.lines.includes(w)?S.lines:W).push({...w,x1:w.x1+s*c.d*n.x,y1:w.y1+s*c.d*n.y,x2:w.x2+s*c.d*n.x,y2:w.y2+s*c.d*n.y});c.w=null;}}
@@ -790,7 +791,7 @@ const inMs=o=>ms.some(q=>q.o===o), isSel=o=>(sel&&sel.o===o)||inMs(o);
 const tg=()=>ms.length?ms:(sel?[sel]:[]);
 $('arrB').onclick=()=>exec('array');
 function selAll(){ms=[...S.walls.map(o=>({k:'wall',o})),...S.lines.map(o=>({k:'line',o})),...S.items.map(o=>({k:'item',o})),...S.dims.map(o=>({k:'dim',o})),...S.zones.map(o=>({k:'zone',o})),...S.texts.map(o=>({k:'text',o}))];sel=null;inspect();draw();}
-function boxDown(p,h,e){if(h&&tool==='select'){if(sel&&!ms.length)ms.push(sel);sel=null;const i=ms.findIndex(q=>q.o===h.o);if(i<0)ms.push(h);else ms.splice(i,1);inspect();}
+function boxDown(p,h,e){if(h&&tool==='select'){if(sel&&!ms.length)ms.push(sel);sel=null;const i=ms.findIndex(q=>q.o===h.o);if(i<0)(h.group||[h.o]).forEach(o=>ms.push({k:h.k,o}));else ms.splice(i,1);inspect();}
  else{if(!e.shiftKey)ms=[];sel=null;drag={m:'box',x0:p.x,y0:p.y};inspect();}}
 function boxEnd(p){const HV=new Set(ms.map(q=>q.o)),b=drag,x0=Math.min(b.x0,p.x),x1=Math.max(b.x0,p.x),y0=Math.min(b.y0,p.y),y1=Math.max(b.y0,p.y),cross=p.x<b.x0;if(x1-x0<.05&&y1-y0<.05)return;
  const add=(k,o,m)=>{const inside=m[0]>=x0&&m[2]<=x1&&m[1]>=y0&&m[3]<=y1,touch=m[0]<=x1&&m[2]>=x0&&m[1]<=y1&&m[3]>=y0;if(((cross&&k!=='zone')?touch:inside)&&!HV.has(o)){ms.push({k,o});HV.add(o);}};
@@ -798,6 +799,7 @@ function boxEnd(p){const HV=new Set(ms.map(q=>q.o)),b=drag,x0=Math.min(b.x0,p.x)
  S.walls.forEach(o=>add('wall',o,seg(o)));S.lines.forEach(o=>add('line',o,seg(o)));S.dims.forEach(o=>add('dim',o,seg(o)));S.zones.forEach(o=>add('zone',o,[o.x,o.y,o.x+o.w,o.y+o.h]));
  S.texts.forEach(o=>add('text',o,isBox(o)?[o.x,o.y,o.x+o.bw,o.y+o.bh]:[o.x,o.y-o.s*.6,o.x+tw(o),o.y-o.s*.6+th(o)]));
  S.items.forEach(o=>{const c=corners(o),X=c.map(q=>q.x),Y=c.map(q=>q.y);add('item',o,[Math.min(...X),Math.min(...Y),Math.max(...X),Math.max(...Y)]);});
+ if(dwOn()){const r=dwgPick({x0,y0,x1,y1},!cross),n=segCount(r.P);if(n>30000)sayD('<span class="err">La ventana toma '+n.toLocaleString('es-AR')+' líneas del plano: elegí una más chica (máximo 30.000) u ocultá capas.</span>');else if(r.P.length||r.X.length){const c=dwgConvert(r.P,r.X);c.L.forEach(o=>{ms.push({k:'line',o});HV.add(o);});c.X.forEach(o=>ms.push({k:'text',o}));}}
  if(ms.length===1){sel=ms[0];ms=[];}}
 function drawBox(px){if(!box)return;const cr=box.x1<box.x0;ctx.fillStyle=cr?'#1a9a4a22':'#2f6fa322';ctx.strokeStyle=cr?'#1a9a4a':'#2f6fa3';ctx.lineWidth=px;ctx.setLineDash(cr?[5*px,4*px]:[]);
  ctx.fillRect(box.x0,box.y0,box.x1-box.x0,box.y1-box.y0);ctx.strokeRect(box.x0,box.y0,box.x1-box.x0,box.y1-box.y0);ctx.setLineDash([]);}
@@ -883,7 +885,7 @@ function rtHit(p,ctrl){if(!routeEditable())return null;const it=sel.o,r=12/view.
   for(let i=1;i<pp.info.length;i++){const c=pp.info[i];if(c&&Math.abs(dd-pp.wd[i])<=c.R*c.th/2+tol)return {o:it,i:i-1};}
   /* sobre un tramo recto: solo con Ctrl (o ⌘) se agrega un punto nuevo */
   if(!ctrl)return null;
-  const h=hit(p);if(h&&h.k!=='zone')return null;
+  const h=hit(p,true);if(h&&h.k!=='zone')return null;
   let k=0;while(k<it.route.length&&pp.wd[k+1]<dd-1e-9)k++;
   return {o:it,at:k,ins:true};}
  return null;}
@@ -1495,6 +1497,7 @@ function drawDwg(px){if(!dwOn())return;const T=S.dwg,G=DWG,M=dwgMasks(),hid=new 
  const sc=view.s*u;let nt=0;ctx.textBaseline='alphabetic';
  gridEach(G,G.grid.T,X0,Y0,X1,Y1,k=>{if(M.X[k])return;const [li,x,y,h,r,s,a]=G.tx[k],L=G.layers[li];if(h*sc<4||hid.has(L.n))return;if(++nt>6000)return false;
   ctx.save();ctx.translate(x,y);if(r)ctx.rotate(r);ctx.fillStyle=L.c;ctx.font='500 '+h+'px Barlow Semi Condensed, sans-serif';ctx.textAlign=a===1?'center':a===2?'right':'left';ctx.fillText(s,0,0);ctx.restore();});
+ if(HOV>=0&&tool==='select'&&!FORCE&&!M.P[HOV]&&!hid.has(G.layers[G.ly[HOV]].n)){const a=G.st[HOV],b=G.st[HOV+1];ctx.globalAlpha=1;ctx.strokeStyle='#1a6fb0';ctx.lineWidth=3*px/u;ctx.beginPath();ctx.moveTo(G.xy[2*a],G.xy[2*a+1]);for(let v=a+1;v<b;v++)ctx.lineTo(G.xy[2*v],G.xy[2*v+1]);if(G.cl[HOV])ctx.closePath();ctx.stroke();}
  if(tool==='dwgmove'&&!FORCE){ctx.globalAlpha=1;ctx.strokeStyle='#1a6fb0';ctx.lineWidth=2*px/u;ctx.setLineDash([8*px/u,5*px/u]);ctx.strokeRect(0,0,G.w,G.h);}
  ctx.restore();}
 function fitBox(b){const W=cv.clientWidth,H=cv.clientHeight;view.s=Math.max(.02,Math.min(80,Math.min(W/b.w,H/b.h)*.95));view.x=(W-b.w*view.s)/2-b.x*view.s;view.y=(H-b.h*view.s)/2-b.y*view.s;draw();}
@@ -1539,7 +1542,7 @@ function renderDwgPanel(){const el=$('dwInfo');if(!el)return;const T=S.dwg;if(!T
  <label>Opacidad<input id="dwOp" type="range" min=".1" max="1" step=".05" value="${T.op||.85}"></label>
  <label><span>Imán a extremos del plano</span><input id="dwSn" type="checkbox" ${T.snap!==false?'checked':''} style="width:auto"></label>
  <div class="grid"><button data-t="dwgmove">Mover plano</button><button id="dwRot">Rotar 90°</button><button id="dwFit">Ver todo el plano</button><button id="dwDel">Quitar plano</button></div>
- <h3 style="margin-top:10px">Trabajar un sector</h3><p class="mut">Elegí la acción y arrastrá una ventana sobre el plano (toma lo que la ventana toca, en las capas visibles).</p>
+ <div class="gcard"><b>El plano se edita directo.</b> Con «Seleccionar», hacé clic en cualquier línea o texto (se resalta en azul al pasar el mouse) o arrastrá con Shift una ventana. Después usá «Editar (CAD)»: mover, copiar, rotar, espejo, desfase, recortar, extender, empalme, Supr para borrar. Para recortar y extender, las líneas del plano sirven de borde.</div><button id="dwAllEd" class="full">Pasar todo lo visible a dibujo editable</button><h3 style="margin-top:10px">Trabajar un sector</h3><p class="mut">Elegí la acción y arrastrá una ventana sobre el plano (toma lo que la ventana toca, en las capas visibles).</p>
  <div class="grid"><button data-t="dwgwin:edit">Editar sector</button><button data-t="dwgwin:erase">Borrar sector</button><button data-t="dwgwin:walls">Paredes del sector</button><button id="dwRest" ${(T.er||[]).length||(T.ter||[]).length?'':'disabled'}>Restaurar lo borrado</button></div>
  <p class="mut">«Editar sector» pasa esas líneas y textos al dibujo del editor: se seleccionan, mueven, copian, recortan, extienden, etc. ${quit?'Quitados del plano hasta ahora: '+quit.toLocaleString('es-AR')+'.':''}</p>
  <h3 style="margin-top:10px">Capas (${idx.length})</h3><input id="dwLf" type="text" placeholder="Buscar capa…" style="width:100%;margin-bottom:6px"><div class="grid"><button id="dwAllOn">Mostrar todas</button><button id="dwAllOff">Ocultar todas</button></div>
@@ -1564,15 +1567,16 @@ $('dwInfo').addEventListener('click',e=>{const b=e.target.closest('button');if(!
  else if(b.id==='dwAllOff'){T.hid=DWG.layers.map(l=>l.n);cap();renderDwgPanel();draw();}
  else if(b.id==='dwRest'){T.er=[];T.ter=[];T.mv=(T.mv||0)+1;cap();renderDwgPanel();draw();sayD('Se restauró lo borrado del plano.');}
  else if(b.id==='dwResave')saveDwgGeo();
+ else if(b.id==='dwAllEd'){const W=dwW(),P=[[0,0],[DWG.w,0],[DWG.w,DWG.h],[0,DWG.h]].map(([a,c])=>W(a,c)),e=Math.max(DWG.w,DWG.h)*T.u*2;dwgWindow({x0:Math.min(...P.map(q=>q.x))-e,y0:Math.min(...P.map(q=>q.y))-e,x1:Math.max(...P.map(q=>q.x))+e,y1:Math.max(...P.map(q=>q.y))+e},'edit');}
  else if(b.id==='dwWalls'){const v=$('dwWL').value;if(v!=='')dwgToWalls(+v,$('dwSingle').checked,null);}});
 /* ===== ventana sobre el plano: editar, borrar o pasar a paredes un sector ===== */
 function segRect(x1,y1,x2,y2,r){const ins=(x,y)=>x>=r.x0&&x<=r.x1&&y>=r.y0&&y<=r.y1;if(ins(x1,y1)||ins(x2,y2))return true;if(Math.max(x1,x2)<r.x0||Math.min(x1,x2)>r.x1||Math.max(y1,y2)<r.y0||Math.min(y1,y2)>r.y1)return false;
  const E=[[r.x0,r.y0,r.x1,r.y0],[r.x1,r.y0,r.x1,r.y1],[r.x1,r.y1,r.x0,r.y1],[r.x0,r.y1,r.x0,r.y0]];for(const [a,b,c,d] of E){const D=(x2-x1)*(d-b)-(y2-y1)*(c-a);if(Math.abs(D)<1e-12)continue;const t=((a-x1)*(d-b)-(b-y1)*(c-a))/D,u=((a-x1)*(y2-y1)-(b-y1)*(x2-x1))/D;if(t>=0&&t<=1&&u>=0&&u<=1)return true;}return false;}
-function dwgPick(wr){const T=S.dwg,G=DWG,M=dwgMasks(),R=dwR(),cs=[R(wr.x0,wr.y0),R(wr.x1,wr.y0),R(wr.x1,wr.y1),R(wr.x0,wr.y1)],r={x0:Math.min(...cs.map(q=>q.x)),x1:Math.max(...cs.map(q=>q.x)),y0:Math.min(...cs.map(q=>q.y)),y1:Math.max(...cs.map(q=>q.y))};
+function dwgPick(wr,inside){const T=S.dwg,G=DWG,M=dwgMasks(),R=dwR(),cs=[R(wr.x0,wr.y0),R(wr.x1,wr.y0),R(wr.x1,wr.y1),R(wr.x0,wr.y1)],r={x0:Math.min(...cs.map(q=>q.x)),x1:Math.max(...cs.map(q=>q.x)),y0:Math.min(...cs.map(q=>q.y)),y1:Math.max(...cs.map(q=>q.y))};
  const W=dwW(),inW=(x,y)=>{const p=W(x,y);return p.x>=wr.x0&&p.x<=wr.x1&&p.y>=wr.y0&&p.y<=wr.y1;},rot=(T.r||0)%180!==0||(T.r||0)%90!==0;
  const hid=new Set(T.hid||[]),P=[],X=[],xy=G.xy,st=G.st,bb=G.bb;
  gridEach(G,G.grid.P,r.x0,r.y0,r.x1,r.y1,k=>{if(M.P[k]||hid.has(G.layers[G.ly[k]].n))return;if(bb[4*k]>r.x1||bb[4*k+2]<r.x0||bb[4*k+1]>r.y1||bb[4*k+3]<r.y0)return;
-  const a=st[k],b=st[k+1];let hitk=false;for(let v=a;v<b-1&&!hitk;v++)hitk=segRect(xy[2*v],xy[2*v+1],xy[2*v+2],xy[2*v+3],r);if(!hitk&&G.cl[k]&&b-a>2)hitk=segRect(xy[2*(b-1)],xy[2*(b-1)+1],xy[2*a],xy[2*a+1],r);if(!hitk&&b-a===1)hitk=inW(xy[2*a],xy[2*a+1]);if(hitk)P.push(k);});
+  const a=st[k],b=st[k+1];if(inside){for(let v=a;v<b;v++)if(!inW(xy[2*v],xy[2*v+1]))return;P.push(k);return;}let hitk=false;for(let v=a;v<b-1&&!hitk;v++)hitk=segRect(xy[2*v],xy[2*v+1],xy[2*v+2],xy[2*v+3],r);if(!hitk&&G.cl[k]&&b-a>2)hitk=segRect(xy[2*(b-1)],xy[2*(b-1)+1],xy[2*a],xy[2*a+1],r);if(!hitk&&b-a===1)hitk=inW(xy[2*a],xy[2*a+1]);if(hitk)P.push(k);});
  gridEach(G,G.grid.T,r.x0,r.y0,r.x1,r.y1,k=>{if(M.X[k])return;const t=G.tx[k];if(hid.has(G.layers[t[0]].n))return;if(inW(t[1],t[2]))X.push(k);});
  return {P,X};}
 function dwgWindow(wr,mode){if(!dwOn())return;const T=S.dwg,G=DWG;if(wr.x1-wr.x0<.05||wr.y1-wr.y0<.05)return;
@@ -1580,10 +1584,7 @@ function dwgWindow(wr,mode){if(!dwOn())return;const T=S.dwg,G=DWG;if(wr.x1-wr.x0
  const {P,X}=dwgPick(wr);if(!P.length&&!X.length){sayD('La ventana no toca nada del plano (en las capas visibles).');return;}
  if(mode==='erase'){T.er=(T.er||[]).concat(P);T.ter=(T.ter||[]).concat(X);T.mv=(T.mv||0)+1;cap();renderDwgPanel();draw();sayD('Borrados del plano: '+P.length.toLocaleString('es-AR')+' objetos y '+X.length+' textos. Deshacer (U) o «Restaurar lo borrado» los recupera.');return;}
  let ns=0;P.forEach(k=>{const n=G.st[k+1]-G.st[k];ns+=n-1+(G.cl[k]&&n>2?1:0);});if(ns>30000){sayD('<span class="err">El sector tiene '+ns.toLocaleString('es-AR')+' líneas: elegí una ventana más chica (máximo 30.000 por vez) u ocultá capas que no necesites.</span>');return;}
- const W=dwW(),R4=v=>Math.round(v*1e4)/1e4,xy=G.xy;
- P.forEach(k=>{const L=G.layers[G.ly[k]],a=G.st[k],b=G.st[k+1],seg=(i,j)=>{const p=W(xy[2*i],xy[2*i+1]),q=W(xy[2*j],xy[2*j+1]);if(Math.hypot(q.x-p.x,q.y-p.y)>1e-5)S.lines.push({x1:R4(p.x),y1:R4(p.y),x2:R4(q.x),y2:R4(q.y),ly:L.n,c:L.c});};for(let v=a;v<b-1;v++)seg(v,v+1);if(G.cl[k]&&b-a>2)seg(b-1,a);});
- X.forEach(k=>{const [li,x,y,h,r,s]=G.tx[k],p=W(x,y),hh=h*T.u,ang=r*180/Math.PI+(T.r||0),ox=Math.sin(ang*Math.PI/180)*hh*.35,oy=-Math.cos(ang*Math.PI/180)*hh*.35;S.texts.push({x:R4(p.x+ox),y:R4(p.y+oy),s:+hh.toPrecision(4),t:s,r:Math.round(ang*100)/100,box:false,c:G.layers[li].c});});
- T.cv=(T.cv||[]).concat(P);T.tcv=(T.tcv||[]).concat(X);T.mv=(T.mv||0)+1;cap();renderDwgPanel();draw();
+ dwgConvert(P,X);cap();renderDwgPanel();draw();
  sayD('Pasaron al editor '+ns.toLocaleString('es-AR')+' líneas y '+X.length+' textos: ya los podés seleccionar y modificar. Deshacer (U) los devuelve al plano.');}
 /* ===== convertir una capa (o un sector) en paredes ===== */
 function dwgToWalls(li,singles,wr){const W=dwW(),G=DWG,M=dwgMasks(),sg=[],xy=G.xy;const [k0,k1]=G.lr[li]||[0,0];
@@ -1618,6 +1619,29 @@ function dwgToWalls(li,singles,wr){const W=dwW(),G=DWG,M=dwgMasks(),sg=[],xy=G.x
  cap();renderDwgPanel();draw();sayD('Listo: '+np+' pared'+(np===1?'':'es')+' de doble línea'+(singles?' y '+ns+' de línea simple':'')+'.'+(wr?' Ocultá la capa «'+esc(G.layers[li].n)+'» para ver el resultado.':' Oculté la capa «'+esc(G.layers[li].n)+'» para que veas el resultado.'));}
 renderDwgPanel();
 
+/* ===== el plano se edita directo: clic o ventana sobre sus líneas y textos ===== */
+let HOV=-1;
+function dwgHitK(p){if(!dwOn())return -1;const T=S.dwg,G=DWG,M=dwgMasks(),R=dwR(),q=R(p.x,p.y),t=Math.max(.05,6/view.s)/T.u,hid=new Set(T.hid||[]),xy=G.xy,st=G.st,bb=G.bb;let best=-1,bd=t;
+ const sd=(i,j)=>{const x1=xy[2*i],y1=xy[2*i+1],dx=xy[2*j]-x1,dy=xy[2*j+1]-y1,l=dx*dx+dy*dy||1e-12,u=Math.max(0,Math.min(1,((q.x-x1)*dx+(q.y-y1)*dy)/l));return Math.hypot(q.x-x1-u*dx,q.y-y1-u*dy);};
+ gridEach(G,G.grid.P,q.x-t,q.y-t,q.x+t,q.y+t,k=>{if(M.P[k]||hid.has(G.layers[G.ly[k]].n))return;if(bb[4*k]>q.x+t||bb[4*k+2]<q.x-t||bb[4*k+1]>q.y+t||bb[4*k+3]<q.y-t)return;const a=st[k],b=st[k+1];
+  for(let v=a;v<b-1;v++){const d=sd(v,v+1);if(d<bd){bd=d;best=k;}}if(G.cl[k]&&b-a>2){const d=sd(b-1,a);if(d<bd){bd=d;best=k;}}if(b-a===1){const d=Math.hypot(xy[2*a]-q.x,xy[2*a+1]-q.y);if(d<bd){bd=d;best=k;}}});
+ return best;}
+function dwgTextK(p){if(!dwOn())return -1;const T=S.dwg,G=DWG,M=dwgMasks(),R=dwR(),q=R(p.x,p.y),hid=new Set(T.hid||[]),m=4/(view.s*T.u);let r=-1;
+ gridEach(G,G.grid.T,q.x-m,q.y-m,q.x+m,q.y+m,k=>{if(M.X[k])return;const [li,x,y,h,rot,s,a]=G.tx[k];if(hid.has(G.layers[li].n)||h*view.s*T.u<4)return;const c=Math.cos(-rot),sn=Math.sin(-rot),dx=q.x-x,dy=q.y-y,lx=dx*c-dy*sn,ly=dx*sn+dy*c,w=s.length*h*.55,x0=a===1?-w/2:a===2?-w:0;
+  if(lx>=x0-m&&lx<=x0+w+m&&ly>=-h-m&&ly<=h*.25+m){r=k;return false;}});return r;}
+const segCount=P=>{let n=0;P.forEach(k=>{const v=DWG.st[k+1]-DWG.st[k];n+=v-1+(DWG.cl[k]&&v>2?1:0);});return n;};
+/* pasa polilíneas y textos del plano al dibujo editable (queda registrado para poder deshacer) */
+function dwgConvert(P,X){const T=S.dwg,G=DWG,W=dwW(),R4=v=>Math.round(v*1e4)/1e4,xy=G.xy,L=[],TX=[];
+ P.forEach(k=>{const ly=G.layers[G.ly[k]],a=G.st[k],b=G.st[k+1],seg=(i,j)=>{const p=W(xy[2*i],xy[2*i+1]),q=W(xy[2*j],xy[2*j+1]);if(Math.hypot(q.x-p.x,q.y-p.y)>1e-5){const o={x1:R4(p.x),y1:R4(p.y),x2:R4(q.x),y2:R4(q.y),ly:ly.n,c:ly.c};S.lines.push(o);L.push(o);}};for(let v=a;v<b-1;v++)seg(v,v+1);if(G.cl[k]&&b-a>2)seg(b-1,a);});
+ X.forEach(k=>{const [li,x,y,h,r,s]=G.tx[k],p=W(x,y),hh=h*T.u,ang=r*180/Math.PI+(T.r||0),ox=Math.sin(ang*Math.PI/180)*hh*.35,oy=-Math.cos(ang*Math.PI/180)*hh*.35,o={x:R4(p.x+ox),y:R4(p.y+oy),s:+hh.toPrecision(4),t:s,r:Math.round(ang*100)/100,box:false,c:G.layers[li].c};S.texts.push(o);TX.push(o);});
+ if(P.length)T.cv=(T.cv||[]).concat(P);if(X.length)T.tcv=(T.tcv||[]).concat(X);T.mv=(T.mv||0)+1;HOV=-1;return {L,X:TX};}
+function dwgPickAt(p){const k=dwgHitK(p);if(k>=0){const r=dwgConvert([k],[]);if(r.L.length){let o=r.L[0],bd=1e9;r.L.forEach(l=>{const d=segDist(p,l);if(d<bd){bd=d;o=l;}});return {k:'line',o,group:r.L};}}
+ const t=dwgTextK(p);if(t>=0){const r=dwgConvert([],[t]);if(r.X.length)return {k:'text',o:r.X[0]};}return null;}
+/* líneas del plano (sin convertir) cerca de un área, para usarlas como bordes al recortar o extender */
+function dwgSegsBox(x0,y0,x1,y1){if(!dwOn())return [];const T=S.dwg,G=DWG,M=dwgMasks(),R=dwR(),W=dwW(),cs=[R(x0,y0),R(x1,y0),R(x1,y1),R(x0,y1)],r={x0:Math.min(...cs.map(q=>q.x)),x1:Math.max(...cs.map(q=>q.x)),y0:Math.min(...cs.map(q=>q.y)),y1:Math.max(...cs.map(q=>q.y))},hid=new Set(T.hid||[]),o=[],xy=G.xy,bb=G.bb;
+ gridEach(G,G.grid.P,r.x0,r.y0,r.x1,r.y1,k=>{if(M.P[k]||hid.has(G.layers[G.ly[k]].n))return;if(bb[4*k]>r.x1||bb[4*k+2]<r.x0||bb[4*k+1]>r.y1||bb[4*k+3]<r.y0)return;const a=G.st[k],b=G.st[k+1],add=(i,j)=>{if(!segRect(xy[2*i],xy[2*i+1],xy[2*j],xy[2*j+1],r))return;const p=W(xy[2*i],xy[2*i+1]),q=W(xy[2*j],xy[2*j+1]);o.push({x1:p.x,y1:p.y,x2:q.x,y2:q.y});};
+  for(let v=a;v<b-1;v++)add(v,v+1);if(G.cl[k]&&b-a>2)add(b-1,a);if(o.length>200000)return false;});return o;}
+function dwgSegsNear(w,ext){const e=ext?Math.max(DWG?Math.max(DWG.w,DWG.h)*S.dwg.u:0,50):.5;return dwgSegsBox(Math.min(w.x1,w.x2)-e,Math.min(w.y1,w.y2)-e,Math.max(w.x1,w.x2)+e,Math.max(w.y1,w.y2)+e);}
 /* ---------- líneas de dibujo editables (vienen del DWG o se dibujan con LI) ---------- */
 function drawLines(px){const L=S.lines;if(!L||!L.length)return;const Wd=FORCE?FORCE.w:cv.clientWidth,Hd=FORCE?FORCE.h:cv.clientHeight,x0=-view.x/view.s,y0=-view.y/view.s,x1=(Wd-view.x)/view.s,y1=(Hd-view.y)/view.s,by=new Map(),SS=new Set(ms.map(q=>q.o));if(sel)SS.add(sel.o);const sl=new Path2D();let ns=0;
  for(const l of L){if(Math.max(l.x1,l.x2)<x0||Math.min(l.x1,l.x2)>x1||Math.max(l.y1,l.y2)<y0||Math.min(l.y1,l.y2)>y1)continue;if(SS.has(l)){sl.moveTo(l.x1,l.y1);sl.lineTo(l.x2,l.y2);ns++;continue;}const c=l.c||'#1d2123';let p=by.get(c);if(!p){p=new Path2D();by.set(c,p);}p.moveTo(l.x1,l.y1);p.lineTo(l.x2,l.y2);}
